@@ -1,0 +1,58 @@
+
+# Replace the text between >> and << with your local configuration.
+# Instead of an external network, you can also use Devstack's default
+# fake external network, which will only be accessible from the Devstack
+# server. In this case, remove FLOATING_RANGE, PUBLIC_NETWORK_GATEWAY, 
+# PUBLIC_INTERFACE and Q_ASSIGN_GATEWAY_TO_PUBLIC_BRIDGE.
+
+[[local|localrc]]
+HOST_IP=>>Your Devstack server's IP address<<
+SERVICE_HOST=$HOST_IP
+MYSQL_HOST=$HOST_IP
+RABBIT_HOST=$HOST_IP
+ADMIN_PASSWORD=pw
+DATABASE_PASSWORD=pw
+RABBIT_PASSWORD=pw
+SERVICE_PASSWORD=pw
+
+## Neutron options
+Q_USE_SECGROUP=True
+
+# The following five settings are required when connecting the cloud
+# to the external network.
+FLOATING_RANGE=>>External network CIDR<<
+# START and END are the first and last IP address of a range that is guaranteed
+# to be unused in your external network.
+Q_FLOATING_ALLOCATION_POOL=start=>>START<<,end=>>END<<
+PUBLIC_NETWORK_GATEWAY=>>External network router, e.g. 192.168.1.1<<
+PUBLIC_INTERFACE=>>Name of Devstack server's NIC, e.g. enp1s0<<
+Q_ASSIGN_GATEWAY_TO_PUBLIC_BRIDGE=FALSE
+
+# Open vSwitch provider networking configuration
+Q_USE_PROVIDERNET_FOR_PUBLIC=True
+OVS_PHYSICAL_BRIDGE=br-ex
+PUBLIC_BRIDGE=br-ex
+OVS_BRIDGE_MAPPINGS=public:br-ex
+
+# Install the Magnum service (K8s cluster manager) and its GUI
+# Magnum requires the Heat service (cloud application orchestration)
+
+enable_plugin heat https://github.com/openstack/heat stable/ussuri
+enable_plugin magnum https://github.com/openstack/magnum stable/ussuri
+enable_plugin magnum-ui https://github.com/openstack/magnum-ui stable/ussuri
+
+# Install the Octavia service (load balancer) and its GUI
+# Barbican (service for storing secrets) is probably optional.
+
+enable_plugin barbican https://opendev.org/openstack/barbican stable/ussuri
+enable_plugin octavia https://opendev.org/openstack/octavia stable/ussuri
+LIBS_FROM_GIT+=python-octaviaclient
+
+ENABLED_SERVICES+=,octavia,o-api,o-cw,o-hm,o-hk,o-da
+
+# End of Octavia
+
+LOGFILE=$DEST/logs/stack.sh.log
+LOGDAYS=14
+LOG_COLOR=False
+
