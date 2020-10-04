@@ -186,28 +186,25 @@ https://docs.openstack.org/image-guide/obtain-images.html#centos), name it
 centos7.qcow2 and copy it to the stack user's home directory. Then run the
 preparation script. It performs the following steps:
 
-- It renames the Cirros image that is already installed to "cirros". 
-  This image will be used later to launch small VMs for testing the load
-  balancer. The renaming is just for convenience.
 - It uploads the Centos 7 image to the OpenStack image store.
 
-- It creates a project named kube, a user named kube and give this user the
-  roles member and load-balancer_member
+- It creates a project named *kube*, a user named *kube* and give this user the
+  roles *member* and *load-balancer_member*
 
-- It creates a network named kubenet and a router named kuberouter, which
-  connects kubenet to the external network named public.
+- It creates a network named *kubenet* and a router named *kuberouter*, which
+  connects *kubenet* to the external network *public*.
 
-- It creates a security group named kubesg, which opens the network ports 
+- It creates a security group named *kubesg*, which opens the network ports 
   necessary for running a K8s cluster.
 
-- It creates an SSH keypair and a corresponding OpenStack keypair. The SSH
-  keypair's private key is required to SSH into the K8s nodes.
+- It creates an SSH keypair and a corresponding OpenStack keypair. The key
+  is required to SSH into the K8s nodes.
 
 - It allocates two floating IPs. These are IP addresses on the external
   network that will allow you to access the K8s nodes.
 
-- It launches two Centos VMs, the cluster master and cluster worker, and
-  assigns security group and floating IPs to them.
+- It launches two Centos-based cluster node *master1* and *worker1*, and
+  assigns the security group and floating IPs to them.
 
 All this can also be done on the GUI, though manually.
 
@@ -227,8 +224,8 @@ Use the Openstack kube identity. Launch two Cirros instances.
                             --key-name kubekey --min 2 --max 2 c
 
 This launches two instances named c-1 and c-2. Add them to the kubesg security
-group (this opens their firewall for ICMP and network port 22) and associate
-floating IP addresses with them.
+group (this opens their firewall for ICMP and network ports 22 and 80) and 
+associate floating IP addresses with them.
 
     openstack floating ip create public
     openstack floating ip create public   # you need two of them
@@ -240,5 +237,46 @@ floating IP addresses with them.
 Access them and install a rudimentary HTTP server.
 
     ssh -i kubekey cirros@FLOATING-IP-1
+    $ while true
+         do echo -e "HTTP/1.0 200 OK\r\n\r\nWelcome to server 1" | 
+         sudo nc -l -p 80 
+    done &
+    $ exit
+
+This short script returns "Welcome to server 1" when the server receives an
+HTTP request. Do the same for the other instance.
+
+    ssh -i kubekey cirros@FLOATING-IP-2
+    $ while true
+         do echo -e "HTTP/1.0 200 OK\r\n\r\nThis is server 2" | 
+         sudo nc -l -p 80 
+    done &
+    $ exit
+
+Test this.
+
+    curl FLOATING-IP-1
+    curl FLOATING-IP-2
+
+Now create a load balancer with these two instances as backends. You need to
+create the load balancer, a listener, a pool for that listener, and add the
+two instances as pool members. This is quite easy to do from the GUI. Here are
+the CLI instructions, almost verbatim from
+https://docs.openstack.org/devstack/latest/guides/devstack-with-lbaas-v2.html#phase-2-create-your-load-balancer.
+
+    # Obtain fixed IP addresses from the Cirros instances
+    FIXED-IP-1=$(openstack server show c-1 -c addresses -f value | sed -e 's/kubenet=//' -e 's/,.*//')
+    FIXED-IP-2=$(openstack server show c-2 -c addresses -f value | sed -e 's/kubenet=//' -e 's/,.*//')
+
+    openstack loadbalancer create --name testlb --vip-subnet-id kubesubnet
+    openstack loadbalancer show testlb  
+    # Repeat the above command until the provisioning_status turns ACTIVE.
+
+    openstack loadbalancer listener create --protocol HTTP --protocol-port
+    80 --name testlistener testlb
+    openstack loadbalancer pool create --lb-algorithm ROUND_ROBIN
+    --listener testlistener --protocol HTTP --name testpool
+    openstack loadbalancer member create --subnet-id kubesubnet --address $FIXED-IP-1 --protocol-port 80 testpool
+    openstack loadbalancer member create --subnet-id kubesubnet --address $FIXED-IP-2 --protocol-port 80 testpool
 
 

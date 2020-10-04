@@ -60,19 +60,19 @@ this is the Devstack default.
      |                     |                          |
      +-----------------Physical NIC-------------------+
                            | 
-  _____ External Network __|______________________________________
+  _________________________|_________External network___________
 
 Thanks to the bridges, the Devstack server and the K8s masters and workers
 can get IP addresses from the external network. This is desirable, as it
-allows exposing services that run on the K8s cluster to the outside world.
+allows exposing cluster services to the outside world.
 
 However, in order to allow access to K8s services from the external network, 
 the hypervisor that hosts the Devstack server must pass traffic to the K8s 
 cluster nodes. In my experience, Virtualbox and Xen block such traffic (I am
 a Xen newbie and don't know if this can be made to work). 
-In case you implement the Devstack server on Virtualbox or Xen, you need to be
-aware that you can access the K8s cluster from the Devstack server, but not
-from any device outside of the Devstack server.
+In case you implement the Devstack server on Virtualbox or Xen, be aware that 
+you can access the K8s cluster from the Devstack server, but not from any 
+device outside of the Devstack server.
 I have not tried out Vmware or Hyper-V.
 
 Preparing the Devstack server and deploying the cloud
@@ -186,30 +186,52 @@ https://docs.openstack.org/image-guide/obtain-images.html#centos), name it
 centos7.qcow2 and copy it to the stack user's home directory. Then run the
 preparation script. It performs the following steps:
 
-- It renames the Cirros image that is already installed to "cirros". 
-  This image will be used later to launch small VMs for testing the load
-  balancer. The renaming is just for convenience.
 - It uploads the Centos 7 image to the OpenStack image store.
 
-- It creates a project named kube, a user named kube and give this user the
-  roles member and load-balancer_member
+- It creates a project named *kube*, a user named *kube* and give this user the
+  roles *member* and *load-balancer_member*
 
-- It creates a network named kubenet and a router named kuberouter, which
-  connects kubenet to the external network named public.
+- It creates a network named *kubenet* and a router named *kuberouter*, which
+  connects *kubenet* to the external network *public*.
 
-- It creates a security group named kubesg, which opens the network ports 
+- It creates a security group named *kubesg*, which opens the network ports 
   necessary for running a K8s cluster.
 
-- It creates an SSH keypair and a corresponding OpenStack keypair. The SSH
-  keypair's private key is required to SSH into the K8s nodes.
+- It creates an SSH keypair and a corresponding OpenStack keypair. The key
+  is required to SSH into the K8s nodes.
 
 - It allocates two floating IPs. These are IP addresses on the external
   network that will allow you to access the K8s nodes.
 
-- It launches two Centos VMs, the cluster master and cluster worker, and
-  assigns security group and floating IPs to them.
+- It launches two Centos-based cluster node *master1* and *worker1*, and
+  assigns the security group and floating IPs to them.
 
 All this can also be done on the GUI, though manually.
+
+Making Devstack reboot-proof
+----------------------------
+
+Devstack's system configurations are largely not persistent. They don't
+survive a reboot.
+
+After the initial setup, nothing needs to be done. The cloud is up and
+running. In case you need to reboot the Devstack server, several modifications
+are required for the cloud to run. These include:
+
+- moving the Devstack server's IP address from the NIC to an Openvswitch
+  bridge named br-ex. This can be done with Netplan.
+- recreating the loop devices on which Cinder volumes reside.
+- creating /var/run/octavia, a directory where the loadbalancer code keeps
+  sockets.
+- configuring the loadbalancer's health monitor NIC, o-hm0, with an IP address
+  and a MAC address
+- adding netfilter rules for the Octavia (loadbalancer) and Magnum (K8s
+  cluster manager) services
+- restart loadbalancer instances (named *amphora*)
+
+You can use a Netplan YAML file for the first bullet and a script named
+restore-devstack for the other points. There are certainly other ways to
+persist the configuration.
 
 Optionally: Test if load balancing works
 ----------------------------------------
@@ -260,5 +282,26 @@ Test this.
 
     curl FLOATING-IP-1
     curl FLOATING-IP-2
+
+Now create a load balancer with these two instances as backends. You need to
+create the load balancer, a listener, a pool for that listener, and add the
+two instances as pool members. This is quite easy to do from the GUI. Here are
+the CLI instructions, almost verbatim from
+https://docs.openstack.org/devstack/latest/guides/devstack-with-lbaas-v2.html#phase-2-create-your-load-balancer.
+
+    # Obtain fixed IP addresses from the Cirros instances
+    FIXED-IP-1=$(openstack server show c-1 -c addresses -f value | sed -e 's/kubenet=//' -e 's/,.*//')
+    FIXED-IP-2=$(openstack server show c-2 -c addresses -f value | sed -e 's/kubenet=//' -e 's/,.*//')
+
+    openstack loadbalancer create --name testlb --vip-subnet-id kubesubnet
+    openstack loadbalancer show testlb  
+    # Repeat the above command until the provisioning_status turns ACTIVE.
+
+    openstack loadbalancer listener create --protocol HTTP --protocol-port
+    80 --name testlistener testlb
+    openstack loadbalancer pool create --lb-algorithm ROUND_ROBIN
+    --listener testlistener --protocol HTTP --name testpool
+    openstack loadbalancer member create --subnet-id kubesubnet --address $FIXED-IP-1 --protocol-port 80 testpool
+    openstack loadbalancer member create --subnet-id kubesubnet --address $FIXED-IP-2 --protocol-port 80 testpool
 
 
