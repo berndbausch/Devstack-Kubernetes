@@ -2,6 +2,17 @@
 Setting up a single-server Devstack cloud as a Kubernetes platform
 ==================================================================
 
+Table of contents
+-----------------
+
+1. [The Devstack server](#server)
+2. [Preparing the Devstack server and deploying the cloud](#prepare)
+3. [Configuring your cloud](#configure)
+4. [If you need to reboot the Devstack server](#reboot)
+5. [Optionally: Test if load balancing works](#test)
+
+
+## server
 The Devstack server
 -------------------
 
@@ -69,6 +80,7 @@ Thanks to the bridges, the Devstack server and the K8s nodes
 can get IP addresses from the external network. This is desirable, as it
 allows to expose K8s cluster services to the outside world.
 
+## prepare
 Preparing the Devstack server and deploying the cloud
 -----------------------------------------------------
 
@@ -166,6 +178,7 @@ You know that the deployment was successful when it ends with messages similar t
 	Change: f482957e89d1ee938da679529aa10f13b2d07631 Bionic: Enable Train UCA for updated QEMU and libvirt 2020-09-18 09:10:58 +0100
 	OS Version: Ubuntu 18.04 bionic
 
+## configure
 Configuring your cloud
 ----------------------
 
@@ -177,6 +190,7 @@ user, a network, a security group, a keypair, and a Centos image. Run the [prepa
 script]((https://github.com/berndbausch/Devstack-Kubernetes/blob/main/preparation.sh) 
 to create all these cloud resources.
 
+## reboot
 If you need to reboot the Devstack server
 -----------------------------------------
 
@@ -192,6 +206,7 @@ Much of the remaining configuration settings could also be made persistent with
 configuration files, but a script does the job as well. Run [restore-devstack.sh](https://github.com/berndbausch/Devstack-Kubernetes/blob/main/restore-devstack.sh) after each
 reboot.
 
+## test
 Optionally: Test if load balancing works
 ----------------------------------------
 
