@@ -12,8 +12,7 @@ Table of contents
 5. [Optionally: Test if load balancing works](#test)
 
 
-## server
-The Devstack server
+The Devstack server<a name="server" />
 -------------------
 
 Install the server version of Ubuntu 18.04 on a computer with these
@@ -80,8 +79,7 @@ Thanks to the bridges, the Devstack server and the K8s nodes
 can get IP addresses from the external network. This is desirable, as it
 allows to expose K8s cluster services to the outside world.
 
-## prepare
-Preparing the Devstack server and deploying the cloud
+Preparing the Devstack server and deploying the cloud<a name="prepare" />
 -----------------------------------------------------
 
 The Devstack documentation site has instructions for 
@@ -178,8 +176,7 @@ You know that the deployment was successful when it ends with messages similar t
 	Change: f482957e89d1ee938da679529aa10f13b2d07631 Bionic: Enable Train UCA for updated QEMU and libvirt 2020-09-18 09:10:58 +0100
 	OS Version: Ubuntu 18.04 bionic
 
-## configure
-Configuring your cloud
+Configuring your cloud<a name="configure" />
 ----------------------
 
 To access the cloud's GUI, direct a browser to the Devstack server's 
@@ -190,8 +187,7 @@ user, a network, a security group, a keypair, and a Centos image. Run the [prepa
 script]((https://github.com/berndbausch/Devstack-Kubernetes/blob/main/preparation.sh) 
 to create all these cloud resources.
 
-## reboot
-If you need to reboot the Devstack server
+If you need to reboot the Devstack server<a name="reboot" />
 -----------------------------------------
 
 Devstack is not designed for getting restarted. Some of the configuration created when
@@ -206,8 +202,7 @@ Much of the remaining configuration settings could also be made persistent with
 configuration files, but a script does the job as well. Run [restore-devstack.sh](https://github.com/berndbausch/Devstack-Kubernetes/blob/main/restore-devstack.sh) after each
 reboot.
 
-## test
-Optionally: Test if load balancing works
+Optionally: Test if load balancing works<a name="test" />
 ----------------------------------------
 
 Based on the [Devstack loadbalancer guide](https://docs.openstack.org/devstack/latest/guides/devstack-with-lbaas-v2.html).
