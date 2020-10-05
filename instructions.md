@@ -8,35 +8,37 @@ The Devstack server
 Install the server version of Ubuntu 18.04 on a computer with these
 properties:
 
-- RAM about 15GB
+- RAM about 15GB for comfortable operation. You will run at least two Kubernetes nodes
+  (4GB each) and a loadbalancer instance in addition to the cloud overhead.
 - Storage around 50GB
 - A few CPUs (minimum 2, the more the better)
 - A single NIC that can reach the internet and that can be reached from
-  outside.
+  outside
 
 This computer, henceforth named Devstack server, can be a physical computer
 in your lab or at a public provider, or a virtual machine running in your 
-lab or a public cloud.
+lab or a public cloud. 
 
-In case the Devstack server is a VM, ensure that nested virtualization is 
-possible and enabled. Otherwise, many actions will be painfully slow, e.g. 
-an hour or more for installing software on the OpenStack instances.
+Should you opt for running the Devstack server in a VM in your lab, ensure that the
+hypervisor supports **nested virtualization** and allows network traffic to flow to the
+nested VMs. KVM fulfills both conditions. In my experience, VirtualBox and Xen block
+traffic to the nested VMs, perhaps because they refuse to talk to unknown IP addresses
+(I am a Xen newbie; there might be a configuration setting that changes this behaviour).
+I have not tried Vmware, Hyper-V or WSL.
 
-This should not be a problem for VMs in public clouds (but it's best to
-check). In case you, like I, opt for a VM in your lab, use a hypervisor that
-allows nested virtualization. I use KVM; recent versions of Virtualbox seem to 
-support nested virtualization as well, as does Xen.
+Without nested virtualization, many actions will be painfully slow, e.g. 
+an hour or more for installing software on nested VMs. 
 
-To enable nested virtualization on a Linux host with the KVM hypervisor, 
-add `kvm-intel.nested=1` or
-`kvm-amd.nested=1` to the kernel parameters, or create a `modprobe.conf.d` file
-that loads the corresponding kernel module `kvm_adm` or `kvm_intel` with the
-`nested=1` parameter.
+To enable nested virtualization on KVM, add 
+`kvm-intel.nested=1` or `kvm-amd.nested=1` to the Linux kernel parameters. Alternatively, 
+create a `modprobe.conf.d` file that loads the corresponding kernel module 
+`kvm_adm` or `kvm_intel` with the `nested=1` parameter.
 
-Here is my setup: Physical Linux computer running a VM where Devstack is 
-installed. The Devstack VM contains a K8s cluster running on nested VMs. br-ex
-is an Openvswitch bridge that connects all OpenStack VMs to the outside world;
-this is the Devstack default.
+Here is my setup: The Devstack server runs in a KVM virtual machine that is connected to 
+the external network via a Linuxbridge. The K8s cluster nodes (master and worker) are 
+OpenStack instances running inside the Devstack server. *br-ex* is an Openvswitch bridge 
+that connects all OpenStack instances to the outside world. The Devstack server's single
+NIC is plugged into br-ex.
 
      +---------------- Physical host -----------------+
      |                                                |
@@ -63,65 +65,53 @@ this is the Devstack default.
                            | 
     _______________________|_________External Network_______________
 
-Thanks to the bridges, the Devstack server and the K8s masters and workers
+Thanks to the bridges, the Devstack server and the K8s nodes
 can get IP addresses from the external network. This is desirable, as it
 allows to expose K8s cluster services to the outside world.
-
-However, in order to allow access to K8s services from the external network, 
-the hypervisor that hosts the Devstack server must forward traffic to the K8s 
-cluster nodes. In my experience, Virtualbox and Xen block such traffic (I am
-a Xen newbie and don't know if this can be made to work), perhaps because they 
-don't know about the IP addresses of nested VMs. 
-Therefore, in case you implement the Devstack server on Virtualbox or Xen, be
-aware that you can access the K8s cluster from the Devstack server, but not
-from the external network.
-I have not tried out Vmware or Hyper-V.
 
 Preparing the Devstack server and deploying the cloud
 -----------------------------------------------------
 
-You need a default Ubuntu installation with SSH access and correct DNS
-resolution. Before setting up Devstack:
+The Devstack documentation site has instructions for 
+[deploying Devstack](https://docs.openstack.org/devstack) and for 
+[enabling the loadbalancer](https://docs.openstack.org/devstack/latest/guides/devstack-with-lbaas-v2.html). 
+These instructions don't cover everything; for example, how to connect the cloud to the 
+external network or how to enable the loadbalancer's GUI. The steps below worked for me.
+
+Start with a default Ubuntu 18.04 installation with SSH access. 
+Before setting up Devstack:
 
 - configure a static IP address (DHCP probably works as well, but static is
   safer)
-- create a user *stack* with password-less sudo. For example:
-
-        useradd -m stack
-        usermod -aG sudo stack
-        sudo sed -i '/^%sudo/s/ALL$/NOPASSWD: ALL/' /tmp/sudoers  
-
+- create a user *stack* with password-less sudo as shown on the Devstack site.
 - I had problems with Ubuntu's default DNS resolution, which was magically
   destroyed during cloud deployment. While I don't know precisely why this
   happened, I solved the problem by linking /etc/resolv.conf as follows:
 
         ln -s /run/systemd/resolve/resolv.conf /etc
 
-After these preparations, log on as the stack user and clone Devstack. 
-You may want to read about Devstack installation and configuration on
-http://docs.openstack.org/devstack, but its documentation has gaps and is not 
-that well organized.
+After these preparations, log on as the *stack* user and clone the Ussuri version of 
+Devstack.
 
     git clone https://opendev.org/openstack/devstack -b stable/ussuri
 
-This creates the $HOME/devstack directory and copies the Ussuri version of
-Devstack to it. Feel free to analyze its contents; Devstack is a collection of 
-Bash scripts.
+This creates the $HOME/devstack directory and copies Devstack to it. Devstack is a 
+collection of Bash scripts, and it's instructive to analyze them.
 
-Devstack has a single configuration file named local.conf. Adapt the
-local.conf template from this repo and copy it to the devstack directory.
+Devstack has a single configuration file named *local.conf*. Adapt the
+[local.conf template from this repo](https://github.com/berndbausch/Devstack-Kubernetes/blob/main/local.conf) and copy it to the devstack directory.
 Then launch the cloud:
     
     cd $HOME/devstack
     ./stack.sh
 
 This will generate a lot of output, which is also written to
-/opt/stack/logs/stack.sh.log. The deployment process installs Ubuntu and
-Python packages from the internet and obtains VM images - installation time
-depends to a large extent on your internet bandwidth but also your disks. 
-Count one to two hours.
+`/opt/stack/logs/stack.sh.log`. The deployment process installs Ubuntu and
+Python packages from the internet and obtains VM images. For this reason, installation 
+time depends to a large extent on your internet bandwidth but also the speed of your
+harddisk(s). Rough estimation: One to two hours.
 
-Many causes for failure are possible, including
+Deployment can fail for many reasons, including:
 
 - `apt` or `dpkg` are running in the background, perhaps because Ubuntu is
   currently looking for updates. Try again when apt/dpkg are quiet.
@@ -132,7 +122,10 @@ Many causes for failure are possible, including
 - problems with your Devstack server: Network breaks down, not enough space,
   ...
 
-A successful deployment is indicated by this output:
+It should be possible to re-run an unsuccessful deployment as long as you don't change
+*local.conf*. Deploying a modified *local.conf* may require installation from scratch.
+
+You know that the deployment was successful when it ends with messages similar to this:
 
 	=========================
 	DevStack Component Timing
@@ -176,56 +169,45 @@ A successful deployment is indicated by this output:
 Configuring your cloud
 ----------------------
 
-The cloud's GUI is accessed by directing a browser to the Devstack server's 
-IP address. Command line access is possible from a shell on the Devstack
-server. 
+To access the cloud's GUI, direct a browser to the Devstack server's 
+IP address. For command line access, use a shell on the Devstack server. 
 
-These instructions require a certain amount of cloud configuration: A project
-and user, a network, a security group, a keypair, and a Centos image.
+Before installing a Kubernetes cluster, add the following to the cloud: A project and 
+user, a network, a security group, a keypair, and a Centos image. Run the [preparation
+script]((https://github.com/berndbausch/Devstack-Kubernetes/blob/main/preparation.sh) 
+to create all these cloud resources.
 
-Obtain a Centos 7 cloud image in qcow2 format (see instructions at
-https://docs.openstack.org/image-guide/obtain-images.html#centos), name it
-`centos7.qcow2` and copy it to the stack user's home directory. Then run the
-`preparation script`. It performs the following steps:
+If you need to reboot the Devstack server
+-----------------------------------------
 
-- It uploads the Centos 7 image to the OpenStack image store.
+Devstack is not designed for getting restarted. Some of the configuration created when
+deploying a cloud is non-persistent. If you plan to switch the Devstack server off, you 
+need to make it restart-proof.
 
-- It creates a project named *kube*, a user named *kube* and give this user the
-  roles *member* and *load-balancer_member*
+The *br-ex* bridge must be configured with the Devstack server's IP address. This can be
+done with a [netplan configuration file](https://github.com/berndbausch/Devstack-Kubernetes/blob/main/00-installer-config.yaml). 
+Copy it to `/etc/netplan`.
 
-- It creates a network named *kubenet* and a router named *kuberouter*, which
-  connects *kubenet* to the external network *public*.
-
-- It creates a security group named *kubesg*, which opens the network ports 
-  necessary for running a K8s cluster.
-
-- It creates an SSH keypair and a corresponding OpenStack keypair. The key
-  is required to SSH into the K8s nodes.
-
-- It allocates two floating IPs. These are IP addresses on the external
-  network that will allow you to access the K8s nodes.
-
-- It launches two Centos-based cluster node *master1* and *worker1*, and
-  assigns the security group and floating IPs to them.
-
-All this can also be done on the GUI, but only manually.
+Much of the remaining configuration settings could also be made persistent with
+configuration files, but a script does the job as well. Run [restore-devstack.sh](https://github.com/berndbausch/Devstack-Kubernetes/blob/main/restore-devstack.sh) after each
+reboot.
 
 Optionally: Test if load balancing works
 ----------------------------------------
 
-Based on
-https://docs.openstack.org/devstack/latest/guides/devstack-with-lbaas-v2.html.
+Based on the [Devstack loadbalancer guide](https://docs.openstack.org/devstack/latest/guides/devstack-with-lbaas-v2.html).
 
 This is not really required, but if you are interested in the setup of a load
 balancer in an OpenStack cloud, you may benefit from this.
 
-Use the Openstack kube identity. Launch two Cirros instances.
+Do this when the cloud is set up. Use the Openstack kube identity. Start by launching
+two Cirros instances.
 
     source ~/devstack/openrc kube kube
     openstack server create --image cirros --network kubenet --flavor 1 \
                             --key-name kubekey --min 2 --max 2 c
 
-This launches two instances named c-1 and c-2. Add them to the kubesg security
+This launches two instances named *c-1* and *c-2*. Add them to the *kubesg* security
 group (this opens their firewall for ICMP and network ports 22 and 80) and 
 associate floating IP addresses with them.
 
@@ -245,7 +227,7 @@ Access them and install a rudimentary HTTP server.
     done &
     $ exit
 
-This short script returns "Welcome to server 1" when the server receives an
+This short script responds with "Welcome to server 1" when the server receives an
 HTTP request. Do the same for the other instance.
 
     ssh -i kubekey cirros@FLOATING-IP-2
@@ -262,9 +244,9 @@ Test this.
 
 Now create a load balancer with these two instances as backends. You need to
 create the load balancer, a listener, a pool for that listener, and add the
-two instances as pool members. This is quite easy to do from the GUI. Here are
-the CLI instructions, almost verbatim from
-https://docs.openstack.org/devstack/latest/guides/devstack-with-lbaas-v2.html#phase-2-create-your-load-balancer.
+two instances as pool members. The GUI allows you to do this intuitively. Here are
+the CLI instructions, almost verbatim from the [Devstack guide](https://docs.openstack.org/devstack/latest/guides/devstack-with-lbaas-v2.html#phase-2-create-your-load-balancer) 
+with additions from the [Basic Load Balancing Cookbook](https://docs.openstack.org/octavia/latest/user/guides/basic-cookbook.html#deploy-a-basic-http-load-balancer-using-a-floating-ip).
 
     # Obtain fixed IP addresses from the Cirros instances
     FIXED-IP-1=$(openstack server show c-1 -c addresses -f value | sed -e 's/kubenet=//' -e 's/,.*//')
@@ -272,7 +254,7 @@ https://docs.openstack.org/devstack/latest/guides/devstack-with-lbaas-v2.html#ph
 
     openstack loadbalancer create --name testlb --vip-subnet-id kubesubnet
     openstack loadbalancer show testlb  
-    # Repeat the above command until the provisioning_status turns ACTIVE.
+    # Repeat the above `show` command until the provisioning status turns ACTIVE.
 
     openstack loadbalancer listener create --protocol HTTP --protocol-port
     80 --name testlistener testlb
@@ -281,4 +263,22 @@ https://docs.openstack.org/devstack/latest/guides/devstack-with-lbaas-v2.html#ph
     openstack loadbalancer member create --subnet-id kubesubnet --address $FIXED-IP-1 --protocol-port 80 testpool
     openstack loadbalancer member create --subnet-id kubesubnet --address $FIXED-IP-2 --protocol-port 80 testpool
 
+The loadbalancer is in place. As the final step, add a floating IP so that it can be
+reached from outside the cloud. This is a bit involved.
+
+Obtain the loadbalancer's ID
+
+    LB_ID=$(openstack loadbalancer show testlb -c id -f value)
+
+Obtain the Neutron port that carries the loadbalancer's virtual IP
+
+    PORT_ID=$(openstack port list --device-id lb-$LB_ID -c ID -f value)
+
+Create a new floating IP and save its ID
+
+    FLOATINGIP_ID=$(openstack floating ip create public -c id -f value)
+
+Associate this floating IP with the loadbalancer's VIP port
+
+    openstack floating ip set --port $PORT_ID $FLOATINGIP_ID
 

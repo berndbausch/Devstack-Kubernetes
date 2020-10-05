@@ -1,0 +1,20 @@
+network:
+  ethernets:
+    NAME_OF_DEVSTACK_SERVERS_NIC:
+      dhcp4: no
+    br-ex:
+      addresses: [DEVSTACK-SERVER-ADDRESS-AND-PREFIX]
+      nameservers: { addresses: [COMMA-SEPARATED-LIST-OF-DNS-SERVERS] }
+      gateway4: EXTERNAL-NETWORK-ROUTER
+  version: 2
+
+# For example:
+# network:
+#   ethernets:
+#     enp1s0:
+#       dhcp4: no
+#     br-ex:
+#       addresses: [192.168.1.200/24]
+#       nameservers: { addresses: [192.168.1.16,1.1.1.1] }
+#       gateway4: 192.168.1.1
+#   version: 2
