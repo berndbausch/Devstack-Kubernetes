@@ -2,6 +2,10 @@
 Setting up a single-server Devstack cloud as a Kubernetes platform
 ==================================================================
 
+The goal is creating Kubernetes clusters on a single-node Devstack server. This document
+covers the server itself, deploying Devstack and a few post-deployment configuration
+steps.
+
 Table of contents
 -----------------
 
@@ -19,7 +23,7 @@ Install the server version of Ubuntu 18.04 on a computer with these
 properties:
 
 - RAM about 15GB for comfortable operation. You will run at least two Kubernetes nodes
-  (4GB each) and a loadbalancer instance in addition to the cloud overhead.
+  (4GB each) and a 1GB loadbalancer instance in addition to the cloud overhead.
 - Storage around 50GB
 - A few CPUs (minimum 2, the more the better)
 - A single NIC that can reach the internet and that can be reached from
@@ -210,8 +214,8 @@ Based on the [Devstack loadbalancer guide](https://docs.openstack.org/devstack/l
 This is not really required, but if you are interested in the setup of a load
 balancer in an OpenStack cloud, you may benefit from this.
 
-Do this when the cloud is set up. Use the Openstack kube identity. Start by launching
-two Cirros instances.
+Do this after [configuring your cloud](#configure). 
+Start with two Cirros instances in the *kube* project.
 
     source ~/devstack/openrc kube kube
     openstack server create --image cirros --network kubenet --flavor 1 \
