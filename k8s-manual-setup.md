@@ -67,13 +67,12 @@ The following instructions are slightly adapted from official
 [OpenStack Cloud Provider](https://github.com/kubernetes/cloud-provider-openstack/blob/release-1.19/docs/using-openstack-cloud-controller-manager.md) 
 documentation.
 
-On the master, build a simple cluster with kubeadm using 
+On the master, build a simple cluster with *kubeadm* using 
 [kubeadm-config-os.yaml](https://github.com/berndbausch/Devstack-Kubernetes/blob/main/manifests/kubeadm-config-os.yaml). The kubeadm command **must be run as root**.
 
     $ sudo kubeadm init --config kubeadm-config-os.yaml
 
-This should take a few minutes. During this time, have a look at the kubeadm
-config file. It configures an external cloud provider and defines a pod
+This should take a few minutes. During this time, have a look at *kubeadm-config-os.yaml*. It configures an external cloud provider and defines a pod
 subnet of 10.244.0.0/16. 
 
 When *kubeadm* completes, it tells you how to create a *.kube*
@@ -105,7 +104,7 @@ Add the network plugin. To install Flannel, for example, run *kubectl* as the
     $ kubectl apply -f https://github.com/coreos/flannel/raw/master/Documentation/kube-flannel.yml
 
 Check if the Docker and Kubernetes installation on the worker node is complete.
-Once it is, run the above *kubeadm* command **as root on the worker node**.
+Once it is, run the above *kubeadm join* command **as root on the worker node**.
 
 When done, **on the master**, check the result with 
 
@@ -136,8 +135,126 @@ You now have a working Kubernetes cluster. Feel free to explore it with a few
 Installing the OpenStack Cloud Provider<a name="cloud-provider" />
 ---------------------------------------
 
+The OpenStack cloud provider enables a Kubernetes cluster to manage nodes that
+are implemented on OpenStack instances and to use the OpenStack load balancer.
 
+To install and configure it, the following ingredients are needed:
+- cloud authentication details
+- other cloud details such as the network to which the load balancer is connected
+- a cloud controller manager
+- RBAC roles for the cloud controller manager
 
+You will use the following cloud configuration, which contains the abovementioned
+cloud details:
+
+	[Global]
+	region=RegionOne
+	username=kube
+	password=pw
+	auth-url=http://<<DEVSTACK-SERVER-IP/identity/v3>>
+	tenant-id=<<KUBE-PROJECT-ID>>
+	domain-id=default
+
+	[LoadBalancer]
+	network-id=<<ID-OF-KUBENET-NETWORK>> 
+
+	[Networking]
+	public-network-name=public
+
+To obtain the *kube* project's ID, run this command **on the Devstack server**:
+
+	$ source ~/devstack/openrc kube kube
+	$ openstack project show kube -c id
+	+-------+----------------------------------+
+	| Field | Value                            |
+	+-------+----------------------------------+
+	| id    | 7a099eff1fb1479b89fa721da3e1a018 |
+	+-------+----------------------------------+
+
+The kubenet network's ID:
+
+	$ openstack network list -c ID -c Name
+	+--------------------------------------+---------+
+	| ID                                   | Name    |
+	+--------------------------------------+---------+
+	| 0e80607f-7cd1-4fe5-a782-3459fa447202 | public  |
+	| dd07c40e-5e6d-4f4c-bb66-cfdcee6dbc70 | kubenet |
+	| e9bbe2fc-daa3-4cdf-aaf3-4c65c8a1a321 | shared  |
+	+--------------------------------------+---------+
+
+Since the cloud configuration above contains a password, it must be turned into a
+secret. **On the master node**, create a file named *cloud.conf* based on the 
+above template, then use it to create a secret:
+
+    $ kubectl create secret -n kube-system generic cloud-config --from-file=cloud.conf
+
+Use the unchanged manifests from the OpenStack cloud provider repo to create RBAC
+resources and launch the controller.
+
+	kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/cluster/addons/rbac/cloud-controller-manager-roles.yaml
+	kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/cluster/addons/rbac/cloud-controller-manager-role-bindings.yaml
+	kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/controller-manager/openstack-cloud-controller-manager-ds.yaml
+
+While the controller manager launches, it might be instructive to analyze its
+manifest. The cloud controller is implemented as a daemonset with a single
+container. Have a look at the command in the container and its options.
+Analyze how the secret is used: It is mounted as a volume named
+*cloud-config-volume*.
+
+The launch will take a few seconds to complete. Check its success with
+
+	$ kubectl -n kube-system get daemonset,pv,pod
+	NAME                                                DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR                     AGE
+	daemonset.apps/kube-flannel-ds                      2         2         2       2            2           <none>                            38m
+	daemonset.apps/kube-proxy                           2         2         2       2            2           kubernetes.io/os=linux            44m
+	daemonset.apps/openstack-cloud-controller-manager   1         1         0       1            0           node-role.kubernetes.io/master=   34s
+
+	NAME                                           READY   STATUS    RESTARTS   AGE
+	pod/coredns-f9fd979d6-hwmpf                    1/1     Running   0          44m
+	pod/coredns-f9fd979d6-kht96                    1/1     Running   0          44m
+	pod/etcd-master1                               1/1     Running   0          44m
+	pod/kube-apiserver-master1                     1/1     Running   0          44m
+	pod/kube-controller-manager-master1            1/1     Running   0          44m
+	pod/kube-flannel-ds-c27nb                      1/1     Running   0          38m
+	pod/kube-flannel-ds-zpbkr                      1/1     Running   0          38m
+	pod/kube-proxy-dxnck                           1/1     Running   0          44m
+	pod/kube-proxy-hl62l                           1/1     Running   0          38m
+	pod/kube-scheduler-master1                     1/1     Running   0          44m
+	pod/openstack-cloud-controller-manager-9c2pp   0/1     Error     1          34s
+		
+(this launched obviously failed).
+
+When the launch succeeds, you can test it by creating a LoadBalancer service.
+Alternatively, install the Cinder CSI plugin.
+
+### Troubleshooting tips
+
+In case the cloud controller manager pod is not in a Running state after a short
+while, you need to find out what's wrong. Typical problems include incorrect 
+*cloud.conf*, wrong secret name and inability 
+to connect to the cloud or authenticate with it. For more information, check the
+pod's logs.
+
+    $ kubectl -n kube-system logs pod/openstack-cloud-controller-manager-9c2pp
+	...
+	... openstack.go:300] failed to read config: 10:11: illegal character U+003A ':'
+	... controllermanager.go:131] Cloud provider could not be initialized: could not init cloud provider "openstack": 10:11: illegal character U+003A ':'
+	
+In this example, *cloud.conf* contained a colon instead of an equal sign
+in line 10. This was fixed by removing the secret, correcting *cloud.conf*,
+recreating the secret and starting a new daemonset:
+
+    $ kubectl -n kube-system delete secret cloud-config
+	$ kubectl create secret -n kube-system generic cloud-config --from-file=cloud.conf
+	$ kubectl -n kube-system delete daemonset.apps/openstack-cloud-controller-manager
+	# wait a moment for this to settle...
+	$ kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/controller-manager/openstack-cloud-controller-manager-ds.yaml
+
+Should the logs not have sufficient information, increase the log level. This is
+done with the *--v* option in the daemonset manifest. A verbosity level of 6
+includes details of the requests made to the OpenStack cloud and is very useful
+in case authentication or other cloud operations fail. Copy the manifest to the
+master, replace *--v=1* with *--v=6* and reapply the manifest.
 
 Installing the CSI Cinder plugin<a name="cinder" />)
 --------------------------------
