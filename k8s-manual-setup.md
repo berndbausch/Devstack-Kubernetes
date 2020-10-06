@@ -21,8 +21,10 @@ software documentation](https://github.com/kubernetes/cloud-provider-openstack/t
 Installing Kubernetes <a name="kubernetes">
 ---------------------
 
-Log on to the master and worker nodes and set their hostnames to the
-respective OpenStack instance name. On the Devstack server, list the instances:
+As a first step, log on to the master and worker nodes and set their hostnames 
+to the respective OpenStack instance name. 
+
+On the Devstack server, list the instances:
 
 	$ source ~/devstack/openrc kube kube
 	$ openstack server list
@@ -34,9 +36,9 @@ respective OpenStack instance name. On the Devstack server, list the instances:
 	+--------+---------+--------+-------------------------------------+---------+---------+
 
 To log on to an instance, you need its IP address and its SSH key. The second IP 
-address of each instance in the above output is its floating IP. The key is
-$HOME/kubekey, if you used or followed the preparation script to prepare the
-Devstack Server.
+address of each instance in the above output is its floating IP. 
+If you used or followed the [preparation script](https://github.com/berndbausch/Devstack-Kubernetes/blob/main/preparation.sh) on the Devstack server, 
+the key is $HOME/kubekey.
 
 Log on to the servers and fix their hostname. Also add the hostnames to
 /etc/hosts.
