@@ -139,13 +139,12 @@ The OpenStack cloud provider enables a Kubernetes cluster to manage nodes that
 are implemented on OpenStack instances and to use the OpenStack load balancer.
 
 To install and configure it, the following ingredients are needed:
-- cloud authentication details
-- other cloud details such as the network to which the load balancer is connected
-- a cloud controller manager
-- RBAC roles for the cloud controller manager
+1. cloud authentication details
+2. other cloud details such as the network to which the load balancer is connected
+3. a cloud controller manager
+4. RBAC roles for the cloud controller manager
 
-You will use the following cloud configuration, which contains the abovementioned
-cloud details:
+The following template contains the cloud details (points 1 and 2):
 
 	[Global]
 	region=RegionOne
@@ -161,7 +160,8 @@ cloud details:
 	[Networking]
 	public-network-name=public
 
-To obtain the *kube* project's ID, run this command **on the Devstack server**:
+To obtain the KUBE-PROJECT-ID and ID-OF-KUBENET-NETWORK, run these commands
+**on the Devstack server**:
 
 	$ source ~/devstack/openrc kube kube
 	$ openstack project show kube -c id
@@ -170,8 +170,6 @@ To obtain the *kube* project's ID, run this command **on the Devstack server**:
 	+-------+----------------------------------+
 	| id    | 7a099eff1fb1479b89fa721da3e1a018 |
 	+-------+----------------------------------+
-
-The kubenet network's ID:
 
 	$ openstack network list -c ID -c Name
 	+--------------------------------------+---------+
@@ -182,20 +180,21 @@ The kubenet network's ID:
 	| e9bbe2fc-daa3-4cdf-aaf3-4c65c8a1a321 | shared  |
 	+--------------------------------------+---------+
 
-Since the cloud configuration above contains a password, it must be turned into a
-secret. **On the master node**, create a file named *cloud.conf* based on the 
-above template, then use it to create a secret:
+**On the master node**, copy the template to a file named *cloud.conf* 
+and replace the two IDs as well as the Devstack server's IP address. Since
+this configuration contains a password, it must be turned into a
+secret:
 
     $ kubectl create secret -n kube-system generic cloud-config --from-file=cloud.conf
 
 Use the unchanged manifests from the OpenStack cloud provider repo to create RBAC
-resources and launch the controller.
+resources and launch the controller (points 3 and 4).
 
 	kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/cluster/addons/rbac/cloud-controller-manager-roles.yaml
 	kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/cluster/addons/rbac/cloud-controller-manager-role-bindings.yaml
 	kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/controller-manager/openstack-cloud-controller-manager-ds.yaml
 
-While the controller manager launches, it might be instructive to analyze its
+While the controller manager launches, it might be instructive to explore its
 manifest. The cloud controller is implemented as a daemonset with a single
 container. Have a look at the command in the container and its options.
 Analyze how the secret is used: It is mounted as a volume named
@@ -230,9 +229,9 @@ Alternatively, install the Cinder CSI plugin.
 ### Troubleshooting tips
 
 In case the cloud controller manager pod is not in a Running state after a short
-while, you need to find out what's wrong. Typical problems include incorrect 
-*cloud.conf*, wrong secret name and inability 
-to connect to the cloud or authenticate with it. For more information, check the
+while, you need to find out what's wrong. 
+*cloud.conf* might be incorrect, the secret name might be inconsistent with the cloud controller manaager manifest, the cloud controller manager might have trouble connecting
+to the cloud or authenticating with it. For more information, check the
 pod's logs.
 
     $ kubectl -n kube-system logs pod/openstack-cloud-controller-manager-9c2pp
