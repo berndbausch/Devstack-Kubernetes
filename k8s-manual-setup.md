@@ -160,7 +160,7 @@ The following template contains the cloud details (points 1 and 2):
 	[Networking]
 	public-network-name=public
 
-To obtain the KUBE-PROJECT-ID and ID-OF-KUBENET-NETWORK, run these commands
+To obtain the `KUBE-PROJECT-ID` and `ID-OF-KUBENET-NETWORK`, run these commands
 **on the Devstack server**:
 
 	$ source ~/devstack/openrc kube kube
@@ -224,11 +224,11 @@ The launch will take a few seconds to complete. Check its success with
 (this launched obviously failed).
 
 When the launch succeeds, you can test it by creating a LoadBalancer service.
-Alternatively, install the Cinder CSI plugin.
+Alternatively, install the [Cinder CSI plugin](#cinder).
 
 ### Troubleshooting tips
 
-In case the cloud controller manager pod is not in a Running state after a short
+In case the cloud controller manager pod is not in state *Running* after a short
 while, you need to find out what's wrong. 
 *cloud.conf* might be incorrect, the secret name might be inconsistent with the cloud controller manaager manifest, the cloud controller manager might have trouble connecting
 to the cloud or authenticating with it. For more information, check the
@@ -258,3 +258,51 @@ master, replace *--v=1* with *--v=6* and reapply the manifest.
 Installing the CSI Cinder plugin<a name="cinder" />)
 --------------------------------
 
+The CSI (cloud storage interface) for Cinder allows creating persistent volumes and persistent 
+volume claims backed by Cinder volumes. The following instructions are based on the 
+[OpenStack Cloud Provider documentation](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/using-cinder-csi-plugin.md#using-the-manifests).
+
+Copy the original [Cinder CSI manifests](https://github.com/kubernetes/cloud-provider-openstack/tree/release-1.19/manifests/cinder-csi-plugin) 
+to a directory **on the master**. You can either download file by file or, perhaps better, simply 
+download the entire repo as a ZIP file (about 0.5MB) or by cloning it. 
+
+Don't copy `csi-secret-cinderplugin.yaml` (or remove it), 
+since the cloud config secret exists already.
+
+    $ cd
+    $ mkdir manifests
+    $ wget https://github.com/kubernetes/cloud-provider-openstack/archive/release-1.19.zip
+    $ unzip release-1.19.zip
+    $ cd cloud-provider-openstack-release-1.19/manifests/cinder-csi-plugin
+    $ cp cinder* csi-cinder-driver.yaml ~/manifests/
+
+Go to that directory.
+If you want to increase containers' logging level, add the *--v=6* option to all containers in the 
+controllerplugin and nodeplugin manifests. This option generates a lot of log 
+messages, including details of the APIs that the plugin issues to the OpenStack cloud.
+
+Apply all manifests. This will create the necessary RBAC roles and launch 
+the controller plugin, node plugin and Cinder driver.
+
+    $ cd ~/manifests
+    $ kubectl apply -f .
+
+Confirm that all pods are up and running. In case they are not, see the 
+troubleshooting section above.
+
+	$ kubectl get pod -n kube-system
+	NAME                                       READY   STATUS    RESTARTS   AGE
+	coredns-f9fd979d6-hwmpf                    1/1     Running   0          6h13m
+	coredns-f9fd979d6-kht96                    1/1     Running   0          6h13m
+	csi-cinder-controllerplugin-0              5/5     Running   0          7m12s
+	csi-cinder-nodeplugin-vrczm                2/2     Running   0          7m11s
+	etcd-master1                               1/1     Running   0          6h14m
+	kube-apiserver-master1                     1/1     Running   0          6h14m
+	kube-controller-manager-master1            1/1     Running   0          6h14m
+	kube-flannel-ds-c27nb                      1/1     Running   0          6h7m
+	kube-flannel-ds-zpbkr                      1/1     Running   0          6h8m
+	kube-proxy-dxnck                           1/1     Running   0          6h13m
+	kube-proxy-hl62l                           1/1     Running   0          6h7m
+	kube-scheduler-master1                     1/1     Running   0          6h14m
+	openstack-cloud-controller-manager-t8kfj   1/1     Running   0          5h10m
+		
