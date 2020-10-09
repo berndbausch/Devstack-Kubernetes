@@ -1,17 +1,14 @@
 
 A Kubernetes cluster with OpenStack cloud provider and Cinder plugin
 ====================================================================
+This page is based on a kubernetes.io 
+[blog entry](https://kubernetes.io/blog/2020/02/07/deploying-external-openstack-cloud-provider-with-kubeadm/) for installing Kubernetes (part 1 below) and the official [OpenStack-Kubernetes 
+software documentation](https://github.com/kubernetes/cloud-provider-openstack/tree/master/docs).
 
 We will use *kubeadm* to launch a Kubernetes cluster on a master and a worker 
 instance, then install the OpenStack cloud provider and the Cinder plugin. This
-will enable us to launch Kubernetes LoadBalancer services and use Cinder
-volumes as Persistent Volumes.
-
-This documents creates the Kubernetes cluster in three parts: Installation of 
-Docker and Kubernetes, installation of the OpenStack cloud provider, and 
-installation of the CSI plugin for Cinder. It is based on a kubernetes.io 
-[blog entry](https://kubernetes.io/blog/2020/02/07/deploying-external-openstack-cloud-provider-with-kubeadm/) for part 1 and the official [OpenStack-Kubernetes 
-software documentation](https://github.com/kubernetes/cloud-provider-openstack/tree/master/docs) for parts 2 to 4.
+will enable us to launch Kubernetes LoadBalancer services and use persistent 
+volume implemented by OpenStack resources.
 
 1. [Installing Kubernetes](#kubernetes)
 2. [Building the Kubernetes cluster](#cluster)
