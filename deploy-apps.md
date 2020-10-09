@@ -108,8 +108,7 @@ By default, Cinder volumes can only be attached to one OpenStack instance. Right
 section explores what happens if pods run on other instances, and how we can ensure that volumes can be mounted to more
 than one Kubernetes node.
 
-Remove the NoSchedule taint from master1
-++++++++++++++++++++++++++++++++++++++++
+###Remove the NoSchedule taint from master1
 
 The master1 node's NoSchedule taint prevents it from running pods:
 
@@ -125,8 +124,7 @@ Remove this taint so that pods can be scheduled there.
 The dash at the end of the command is significant. Use `kubectl describe` again 
 to double-check that the taint has been removed.
 
-Add pods and check their health
-+++++++++++++++++++++++++++++++
+###Add pods and check their health
 
 In example-pod.yaml, set the replica number from 4 to 8, 
 then apply the updated manifest. List the pods.
@@ -156,8 +154,7 @@ in the storage class.
 
 Delete the replicaset, PVC and storage class. 
 
-Multi-attach storage class
-++++++++++++++++++++++++++
+###Multi-attach storage class
 
 To attach a Cinder volume to more than one instance, it must have a multi-attach volume type. No such type exists right
 now, so that you have to create one first. See the [Cinder admin guide](https://docs.openstack.org/cinder/latest/admin/blockstorage-volume-multiattach.html) for more information.
@@ -200,8 +197,7 @@ and that it has the multiattach flag.
 	| multiattach                  | True                                          |
 	| type                         | multiattach-type                              |
     
-Run the pods and check their health
-+++++++++++++++++++++++++++++++++++
+###Run the pods and check their health
 
 $ kubectl apply -f example-pod.yaml
 replicationcontroller/server created
