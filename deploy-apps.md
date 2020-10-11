@@ -10,7 +10,8 @@ It's time to use the cluster. You will:
 - [create a simple app that uses the load balancer](#lb)
 - [create a slightly more complex app that uses both Openstack services](#complex)
 
-Creating a simple app that uses Cinder volumes<a name="volumes" />
+<a name="volumes" />
+Creating a simple app that uses Cinder volumes
 ----------------------------------------------
 To use Cinder volumes, you need to define a storage class that maps to Cinder.
 This is done by referencing the Cinder CSI driver as provider in the storage
@@ -101,7 +102,7 @@ volume status has changed from *available* to *in-use*, and that it is attached 
 
 The volume is known as vdb and mounted to a kubelet directory.
 
-Multi-attach volumes<a name="#multiattach" />
+Multi-attach volumes
 --------------------
 
 By default, Cinder volumes can only be attached to one OpenStack instance. 
@@ -240,11 +241,12 @@ When you repeat the command after a while, all pods should be in status
 
 The *Attached to* column shows that the Cinder volume is attached to the two nodes.
 
-Creating a simple app that uses load balancing<a name="lb" />
+<a name="lb" />
+Creating a simple app that uses load balancing
 ----------------------------------------------
 
 To demonstrate load balancing, pods need to run at two or more nodes. 
-See the [instructions](#multiattach) in the
+See the [instructions](#multi-attach-volumes) in the
 previous section for enabling pod scheduling on the controller.
 
 ### Create new manifests
@@ -357,7 +359,8 @@ respond.
     $ curl 192.168.1.225
 	Server 5
 
-Creating a complex app that uses the OpenStack Load Balancer and Cinder volumes<a name="complex" />
+<a name="complex" />
+Creating a complex app that uses the OpenStack Load Balancer and Cinder volumes
 -------------------------------------------------------------------------------
 
 
