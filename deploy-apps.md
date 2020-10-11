@@ -11,6 +11,7 @@ It's time to use the cluster. You will:
 - [create a slightly more complex app that uses both Openstack services](#complex)
 
 <a name="volumes" />
+
 Creating a simple app that uses Cinder volumes
 ----------------------------------------------
 To use Cinder volumes, you need to define a storage class that maps to Cinder.
@@ -242,6 +243,7 @@ When you repeat the command after a while, all pods should be in status
 The *Attached to* column shows that the Cinder volume is attached to the two nodes.
 
 <a name="lb" />
+
 Creating a simple app that uses load balancing
 ----------------------------------------------
 
@@ -360,6 +362,7 @@ respond.
 	Server 5
 
 <a name="complex" />
+
 Creating a complex app that uses the OpenStack Load Balancer and Cinder volumes
 -------------------------------------------------------------------------------
 
