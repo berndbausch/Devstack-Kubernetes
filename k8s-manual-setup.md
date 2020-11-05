@@ -151,9 +151,10 @@ To install and configure it, the following ingredients are needed:
 3. RBAC roles for the cloud controller manager
 4. a cloud controller manager
 
-### Authentication and network details
+### Configure authentication and network details
 
-The following template contains the cloud details (points 1 and 2):
+The following template contains the cloud details (points 1 and 2). They tell
+the Cinder CSI plugin how to access the cloud.
 
 	[Global]
 	region=RegionOne
@@ -189,17 +190,15 @@ To obtain the `KUBE-PROJECT-ID` and `ID-OF-KUBENET-NETWORK`, run these commands
 	| e9bbe2fc-daa3-4cdf-aaf3-4c65c8a1a321 | shared  |
 	+--------------------------------------+---------+
 
-**On the master node**, copy the template to a file named *cloud.conf* 
+**On the master node**, copy the above template to a file named *cloud.conf* 
 and replace the two IDs as well as the Devstack server's IP address. Since
-this configuration contains a password, it must be turned into a
-secret:
+this configuration contains a password, it must be turned into a secret:
 
     $ kubectl create secret -n kube-system generic cloud-config --from-file=cloud.conf
 
-### RBAC resources
+### Create RBAC resources
 
-Use the unchanged manifests from the OpenStack cloud provider repo to create RBAC
-resources.
+Use the manifests from the OpenStack cloud provider repo to create RBAC resources.
 
 	kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/cluster/addons/rbac/cloud-controller-manager-roles.yaml
 	kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/cluster/addons/rbac/cloud-controller-manager-role-bindings.yaml
@@ -271,14 +270,14 @@ includes details of the requests made to the OpenStack cloud and is very useful
 in case authentication or other cloud operations fail. Copy the manifest to the
 master, replace *--v=1* with *--v=6* and reapply the manifest.
 
-Installing the CSI Cinder plugin<a name="cinder" />)
+Installing the CSI Cinder plugin<a name="cinder" />
 --------------------------------
 
 The CSI (cloud storage interface) for Cinder allows creating persistent volumes and persistent 
 volume claims backed by Cinder volumes. The following instructions are based on the 
 [OpenStack Cloud Provider documentation](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/using-cinder-csi-plugin.md#using-the-manifests).
 
-### Copy manifests to the master
+### Copy Cinder CSI manifests to the master
 
 Copy the original [Cinder CSI manifests](https://github.com/kubernetes/cloud-provider-openstack/tree/release-1.19/manifests/cinder-csi-plugin) 
 to the master. You can either download file by file or, perhaps better, simply 
@@ -299,7 +298,7 @@ since the cloud config secret exists already.
     $ cd cloud-provider-openstack-release-1.19/manifests/cinder-csi-plugin
     $ cp cinder* csi-cinder-driver.yaml ~/manifests/
 
-### Apply the CSI Cinder manifests
+### Apply the Cinder CSI manifests
 
 Go to the manifest directory.
 If you want to increase containers' logging level, add the *--v=6* option to all containers in the 

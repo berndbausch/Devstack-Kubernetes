@@ -7,8 +7,8 @@ provider and the Cinder CSI plugin to that cloud.
 
 It's time to use the cluster. You will:
 - [create a simple app that uses Cinder volumes](#volumes)
+- [create a simple app that uses multi-attach Cinder volumes](#multi)
 - [create a simple app that uses the load balancer](#lb)
-- [create a slightly more complex app that uses both Openstack services](#complex)
 
 <a name="volumes" />
 
@@ -17,6 +17,8 @@ A simple app that uses Cinder volumes
 To use Cinder volumes, you need to define a storage class that maps to Cinder.
 This is done by referencing the Cinder CSI driver as provider in the storage
 class definition.
+
+### Obtain the Cinder CSI driver's name
 
 What is the name of the Cinder CSI driver? It is defined in the
 `csi-cinder-driver.yaml` manifest:
@@ -35,11 +37,13 @@ What is the name of the Cinder CSI driver? It is defined in the
 
 The driver is named *cinder.csi.openstack.org*.
 
-You can also check the currently installed CSI drivers:
+Alternatively, list currently installed CSI drivers:
 
 	$ kubectl get csidrivers.storage.k8s.io
 	NAME                       ATTACHREQUIRED   PODINFOONMOUNT   MODES                  AGE
 	cinder.csi.openstack.org   true             true             Persistent,Ephemeral   2d20h
+
+### Define storage
 
 Three manifests, almost unchanged from the [Kubernetes
 blog](https://kubernetes.io/blog/2020/02/07/deploying-external-openstack-cloud-provider-with-kubeadm/#deploy-cinder-csi), 
@@ -59,6 +63,8 @@ First, apply the two storage manifests.
     $ kubectl apply -f cinder-storageclass.yaml
     $ kubectl apply -f cinder-pvc-claim1.yaml
 
+### Check success
+
 If everything is configured correctly, the PVC should be backed by a Cinder
 volume. **On the Devstack server**, check the volumes.
 
@@ -72,6 +78,8 @@ volume. **On the Devstack server**, check the volumes.
 
 The PVC corresponds to a Cinder volume that is currently available, i.e. not
 attached to any server.
+
+### Launch the application
 
 **On the master1 node**, launch the application.
 
@@ -89,6 +97,8 @@ attached to any server.
 	NAME                           STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS          AGE
 	persistentvolumeclaim/claim1   Bound    pvc-a0c8e55f-f766-44bd-80a5-ff2832e4365f   1Gi        RWO            csi-sc-cinderplugin   7m48s
 		
+### Check launch success
+
 **On the Devstack server**, list the volume again. You will find that the
 volume status has changed from *available* to *in-use*,
 and that it is attached to the *worker1* instance. 
@@ -106,21 +116,23 @@ and that it is attached to the *worker1* instance.
 
 The volume is known as *vdb* and mounted to a kubelet directory.
 
+<a name="multi" />
+
 Multi-attach volumes
 --------------------
 
 By default, Cinder volumes can only be attached to one OpenStack instance. 
 Right now, the PVC is attached to *worker1*.
 
-This section explores pods on multiple instances sharing a volume, 
+This section explores **pods on multiple nodes sharing a volume**, 
 and what changes are necessary for this to work. We will:
 
-1. allow pods to be scheduled on the controller
-2. fail deploying pods on both nodes
-3. add a Cinder volume type
-4. change the storage class manifest 
+1. allow pods to be scheduled on the controller.
+2. try deploying pods on both nodes, but fail.
+3. add a Cinder volume type.
+4. change the storage class manifest .
 5. make the PVC *ReadWriteMany*.
-6. succeed deploying pods on both nodes
+6. try deploying pods on both nodes, and succeed.
 
 ### 1. Remove the NoSchedule taint from master1
 
@@ -180,12 +192,13 @@ but first delete the replica controller, PVC and storage class.
 
 To attach a Cinder volume to more than one instance, it must have a 
 *multi-attach volume type*. No such volume type exists right
-now, so that you have to create one first. See the [Cinder admin guide](https://docs.openstack.org/cinder/latest/admin/blockstorage-volume-multiattach.html) for more information.
+now, so that you have to create one first. 
+See the [Cinder admin guide](https://docs.openstack.org/cinder/latest/admin/blockstorage-volume-multiattach.html) for more information.
 
 **On the Devstack server**:
 
     $ source ~/devstack/openrc admin admin
-	$ openstack volume type create multiattach-type --property multiattach="<is> True"
+    $ openstack volume type create multiattach-type --property multiattach="<is> True"
 
 The T in True must be upper-case. 
 
