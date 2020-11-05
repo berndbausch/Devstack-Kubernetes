@@ -298,7 +298,9 @@ storage instead of a volume:
 		  - name: server
 			image: nginx
 
-This manifest differs from the original in two points: Pods have an additional label 
+This manifest is based on an [example](https://github.com/kubernetes/cloud-provider-openstack/blob/master/examples/persistent-volume-provisioning/cinder/example-pod.yaml) 
+from the official Cloud Provider OpenStack repo. 
+It differs from the original in two points: Pods have an additional label 
 `app: lbserver`, and there is no volume.
 
 Create a **service manifest** named *service.yaml*. 
