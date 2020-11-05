@@ -3,7 +3,7 @@ A Kubernetes cluster with OpenStack cloud provider and Cinder plugin
 ====================================================================
 This page is based on a kubernetes.io 
 [blog entry](https://kubernetes.io/blog/2020/02/07/deploying-external-openstack-cloud-provider-with-kubeadm/) for installing Kubernetes (part 1 below) and the official [OpenStack-Kubernetes 
-software documentation](https://github.com/kubernetes/cloud-provider-openstack/tree/master/docs).
+cloud provider documentation](https://github.com/kubernetes/cloud-provider-openstack/tree/master/docs).
 
 We will use *kubeadm* to launch a Kubernetes cluster on a master and a worker 
 instance, then install the OpenStack cloud provider and the Cinder plugin. This
@@ -32,24 +32,26 @@ On the Devstack server, list the instances:
 	| cf8... | master1 | ACTIVE | kubenet=172.16.0.169, 192.168.1.221 | centos7 | ds4G    |
 	+--------+---------+--------+-------------------------------------+---------+---------+
 
+If these instances don't exist, create them according to the 
+[preparation script](https://github.com/berndbausch/Devstack-Kubernetes/blob/main/devstack-setup.md#configuring-your-cloud).
+
 To log on to an instance, you need its IP address and its SSH key. The second IP 
 address of each instance in the above output is its floating IP. 
-If you used or followed the [preparation script](https://github.com/berndbausch/Devstack-Kubernetes/blob/main/preparation.sh) on the Devstack server, 
-the key is $HOME/kubekey.
+If you used the preparation script, the key is $HOME/kubekey.
 
 Log on to the servers and fix their hostname. Also add the hostnames to
 /etc/hosts.
 
     $ ssh -i kubekey centos@192.168.1.221
-	$ sudo hostnamectl set-hostname master1
-	$ echo 192.168.1.221 master1 | sudo tee -a /etc/hosts
-	$ echo 192.168.1.228 worker1 | sudo tee -a /etc/hosts
-	$ exit
+    $ sudo hostnamectl set-hostname master1
+    $ echo 192.168.1.221 master1 | sudo tee -a /etc/hosts
+    $ echo 192.168.1.228 worker1 | sudo tee -a /etc/hosts
+    $ exit
     $ ssh -i kubekey centos@192.168.1.228
-	$ sudo hostnamectl set-hostname worker1
-	$ echo 192.168.1.221 master1 | sudo tee -a /etc/hosts
-	$ echo 192.168.1.228 worker1 | sudo tee -a /etc/hosts
-	$ exit
+    $ sudo hostnamectl set-hostname worker1
+    $ echo 192.168.1.221 master1 | sudo tee -a /etc/hosts
+    $ echo 192.168.1.228 worker1 | sudo tee -a /etc/hosts
+    $ exit
 
 Next, install Docker and Kubernetes software on **both nodes**, master and worker. You can do that in parallel.
 
@@ -63,6 +65,8 @@ Building the Kubernetes cluster<a name="cluster" />
 The following instructions are slightly adapted from official 
 [OpenStack Cloud Provider](https://github.com/kubernetes/cloud-provider-openstack/blob/release-1.19/docs/using-openstack-cloud-controller-manager.md) 
 documentation.
+
+### Build a cluster on the master instance
 
 On the master, build a simple cluster with *kubeadm* using 
 [kubeadm-config-os.yaml](https://github.com/berndbausch/Devstack-Kubernetes/blob/main/manifests/kubeadm-config-os.yaml). The kubeadm command **must be run as root**.
@@ -95,10 +99,14 @@ configuration directory and how to add other nodes to the cluster:
 Create *.kube/config* as instructed. Make a note of the *kubeadm join* command
 but don't execute it yet.
 
-Add the network plugin. To install Flannel, for example, run *kubectl* as the 
+### Add a network plugin
+
+For example, to install Flannel run *kubectl* as the 
 **non-privileged centos user**.
 
     $ kubectl apply -f https://github.com/coreos/flannel/raw/master/Documentation/kube-flannel.yml
+
+### Join the worker instance to the cluster
 
 Check if the Docker and Kubernetes installation on the worker node is complete.
 Once it is, run the above *kubeadm join* command **as root on the worker node**.
@@ -111,6 +119,8 @@ When done, **on the master**, check the result with
 	worker1   Ready    <none>   58s     v1.19.2
 	
 If *worker1* is not ready, repeat the command a few seconds later.
+
+### Confirm that the cluster is working
 
 You now have a working Kubernetes cluster. Feel free to explore it with a few
 *kubectl get* commands or to deploy an application on it.
@@ -138,8 +148,10 @@ are implemented on OpenStack instances and to use the OpenStack load balancer.
 To install and configure it, the following ingredients are needed:
 1. cloud authentication details
 2. other cloud details such as the network to which the load balancer is connected
-3. a cloud controller manager
-4. RBAC roles for the cloud controller manager
+3. RBAC roles for the cloud controller manager
+4. a cloud controller manager
+
+### Authentication and network details
 
 The following template contains the cloud details (points 1 and 2):
 
@@ -184,11 +196,18 @@ secret:
 
     $ kubectl create secret -n kube-system generic cloud-config --from-file=cloud.conf
 
+### RBAC resources
+
 Use the unchanged manifests from the OpenStack cloud provider repo to create RBAC
-resources and launch the controller (points 3 and 4).
+resources.
 
 	kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/cluster/addons/rbac/cloud-controller-manager-roles.yaml
 	kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/cluster/addons/rbac/cloud-controller-manager-role-bindings.yaml
+
+### Launch the controller manager
+
+Use the manifest from the OpenStack Cloud Provider repo on Github.
+
 	kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/controller-manager/openstack-cloud-controller-manager-ds.yaml
 
 While the controller manager launches, it might be instructive to explore its
@@ -218,7 +237,7 @@ The launch will take a few seconds to complete. Check its success with
 	pod/kube-scheduler-master1                     1/1     Running   0          44m
 	pod/openstack-cloud-controller-manager-9c2pp   0/1     Error     1          34s
 		
-(this launched obviously failed).
+(this launch obviously failed).
 
 When the launch succeeds, you can test it by creating a LoadBalancer service.
 Alternatively, install the [Cinder CSI plugin](#cinder).
@@ -259,11 +278,18 @@ The CSI (cloud storage interface) for Cinder allows creating persistent volumes 
 volume claims backed by Cinder volumes. The following instructions are based on the 
 [OpenStack Cloud Provider documentation](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/using-cinder-csi-plugin.md#using-the-manifests).
 
+### Copy manifests to the master
+
 Copy the original [Cinder CSI manifests](https://github.com/kubernetes/cloud-provider-openstack/tree/release-1.19/manifests/cinder-csi-plugin) 
-to a directory **on the master**. You can either download file by file or, perhaps better, simply 
-download the entire repo as a ZIP file (about 0.5MB) or by cloning it. 
+to the master. You can either download file by file or, perhaps better, simply 
+clone the entire repo or download the repo as a ZIP file (about 0.5MB). 
 
 Don't copy `csi-secret-cinderplugin.yaml` (or remove it), 
+since the cloud config secret exists already.
+
+The following code, performed on the **master**, downloads the ZIP file 
+and copies the relevant manifests to a new `manifest` directory. 
+Don't copy `csi-secret-cinderplugin.yaml`,
 since the cloud config secret exists already.
 
     $ cd
@@ -273,7 +299,9 @@ since the cloud config secret exists already.
     $ cd cloud-provider-openstack-release-1.19/manifests/cinder-csi-plugin
     $ cp cinder* csi-cinder-driver.yaml ~/manifests/
 
-Go to that directory.
+### Apply the CSI Cinder manifests
+
+Go to the manifest directory.
 If you want to increase containers' logging level, add the *--v=6* option to all containers in the 
 controllerplugin and nodeplugin manifests. This option generates a lot of log 
 messages, including details of the APIs that the plugin issues to the OpenStack cloud.
@@ -283,6 +311,8 @@ the controller plugin, node plugin and Cinder driver.
 
     $ cd ~/manifests
     $ kubectl apply -f .
+
+### Confirm success
 
 Confirm that all pods are up and running. In case they are not, see the 
 troubleshooting section above.
@@ -303,3 +333,5 @@ troubleshooting section above.
 	kube-scheduler-master1                     1/1     Running   0          6h14m
 	openstack-cloud-controller-manager-t8kfj   1/1     Running   0          5h10m
 		
+You should now be ready to launch applications on this cluster that make use of the 
+OpenStack loadbalancer and volume services.

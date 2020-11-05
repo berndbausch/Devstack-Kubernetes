@@ -12,14 +12,14 @@ It's time to use the cluster. You will:
 
 <a name="volumes" />
 
-Creating a simple app that uses Cinder volumes
-----------------------------------------------
+A simple app that uses Cinder volumes
+-------------------------------------
 To use Cinder volumes, you need to define a storage class that maps to Cinder.
 This is done by referencing the Cinder CSI driver as provider in the storage
 class definition.
 
 What is the name of the Cinder CSI driver? It is defined in the
-csi-cinder-driver manifest:
+`csi-cinder-driver.yaml` manifest:
 
 	$ cat csi-cinder-driver.yaml
 	apiVersion: storage.k8s.io/v1
@@ -33,7 +33,7 @@ csi-cinder-driver manifest:
 	  - Persistent
 	  - Ephemeral
 
-The driver is named cinder.csi.openstack.org.
+The driver is named *cinder.csi.openstack.org*.
 
 You can also check the currently installed CSI drivers:
 
@@ -42,7 +42,9 @@ You can also check the currently installed CSI drivers:
 	cinder.csi.openstack.org   true             true             Persistent,Ephemeral   2d20h
 
 Three manifests, almost unchanged from the [Kubernetes
-blog](https://kubernetes.io/blog/2020/02/07/deploying-external-openstack-cloud-provider-with-kubeadm/#deploy-cinder-csi), define the test application: A storageclass definition, a PVC, and NGINX. The storage class is linked to the CSI driver via its *provisioner* key:
+blog](https://kubernetes.io/blog/2020/02/07/deploying-external-openstack-cloud-provider-with-kubeadm/#deploy-cinder-csi), 
+define the test application: A storageclass definition, a PVC, and a replication controller with
+NGINX pods. The storage class is linked to the CSI driver via its *provisioner* key:
 
 	$ cat cinder-storageclass.yaml
 	apiVersion: storage.k8s.io/v1
@@ -51,14 +53,14 @@ blog](https://kubernetes.io/blog/2020/02/07/deploying-external-openstack-cloud-p
 	  name: csi-sc-cinderplugin
 	provisioner: cinder.csi.openstack.org
 
-Copy the three manifests to a directory. First, apply the two storage
-manifests.
+**On the master1 node**, copy the three manifests from [this Github repo](https://github.com/berndbausch/Devstack-Kubernetes/tree/main/manifests/cinder-app) to their own directory. 
+First, apply the two storage manifests.
 
     $ kubectl apply -f cinder-storageclass.yaml
     $ kubectl apply -f cinder-pvc-claim1.yaml
 
 If everything is configured correctly, the PVC should be backed by a Cinder
-volume. On the Devstack server, check the volumes.
+volume. **On the Devstack server**, check the volumes.
 
 	$ source ~/devstack/openrc kube kube
 	$ openstack volume list -f yaml
@@ -71,7 +73,7 @@ volume. On the Devstack server, check the volumes.
 The PVC corresponds to a Cinder volume that is currently available, i.e. not
 attached to any server.
 
-Go back to *master1* and launch the application.
+**On the master1 node**, launch the application.
 
 	$ kubectl apply -f example-pod.yaml
 	$ kubectl get rc,pod,pvc
@@ -88,11 +90,12 @@ Go back to *master1* and launch the application.
 	persistentvolumeclaim/claim1   Bound    pvc-a0c8e55f-f766-44bd-80a5-ff2832e4365f   1Gi        RWO            csi-sc-cinderplugin   7m48s
 		
 **On the Devstack server**, list the volume again. You will find that the
-volume status has changed from *available* to *in-use*, and that it is attached to the *worker1* instance. 
+volume status has changed from *available* to *in-use*,
+and that it is attached to the *worker1* instance. 
 
-**On the worker1 server**, verify that the volume is attached and mounted.
+**On the worker1 node**, verify that the volume is attached and mounted.
 
-	[centos@worker1 ~]$ lsblk --ascii
+	[centos@worker1 ~]$ lsblk
 	NAME   MAJ:MIN RM SIZE RO TYPE MOUNTPOINT
 	vda    252:0    0  20G  0 disk
 	`-vda1 252:1    0  20G  0 part /
@@ -101,13 +104,13 @@ volume status has changed from *available* to *in-use*, and that it is attached 
 	/dev/vda1: UUID="6cd50e51-cfc6-40b9-9ec5-f32fa2e4ff02" TYPE="xfs"
 	/dev/vdb: UUID="028085bf-2dd1-47c0-ab2a-e925a4150c36" TYPE="ext4"
 
-The volume is known as vdb and mounted to a kubelet directory.
+The volume is known as *vdb* and mounted to a kubelet directory.
 
 Multi-attach volumes
 --------------------
 
 By default, Cinder volumes can only be attached to one OpenStack instance. 
-Right now, the PVC is attached to worker1 only. 
+Right now, the PVC is attached to *worker1*.
 
 This section explores pods on multiple instances sharing a volume, 
 and what changes are necessary for this to work. We will:
@@ -121,7 +124,7 @@ and what changes are necessary for this to work. We will:
 
 ### 1. Remove the NoSchedule taint from master1
 
-We want to run pods on the master1 node, but right now its NoSchedule taint 
+We want to run pods on the *master1* node, but right now its *NoSchedule* taint 
 makes this impossible:
 
     $ kubectl describe no master1 
@@ -138,7 +141,7 @@ to double-check that the taint has been removed.
 
 ### 2. Add pods to the controller and check their health
 
-In example-pod.yaml, set the replica number from 4 to 8, 
+In `example-pod.yaml`, set the replica number from 4 to 8, 
 then apply the updated manifest. List the pods.
 
 	$ kubectl get pods -o wide
@@ -147,8 +150,10 @@ then apply the updated manifest. List the pods.
 	server-bnwd7   1/1     Running             0          3h21m   10.244.1.30   worker1   <none>           <none>
 	server-j8mnp   0/1     ContainerCreating   0          7s      <none>        master1   <none>           <none>
 
-After a minute or so, check again. You will find that the status for the new pods remains *ContainerCreating*.
-When you describe one of these pods, you will find that their creation can't be completed because the volume can't be
+After a minute or so, check again. You will find that the status 
+for the new pods remains *ContainerCreating*.
+When you describe one of these pods, you will find that their 
+creation can complete because the volume can't be
 attached and therefore not mounted:
 
 	$ kubectl describe pod server-vl8cl
@@ -164,13 +169,17 @@ This is so because *master1* can't attach a volume that is already attached
 to *worker1*. To attach a
 Cinder volume to several instances, its *multiattach* flag must be set. 
 
-Before setting up a storage class that allows multi-attachment, 
-delete the replicaset, PVC and storage class. 
+You will now set up a storage class that allows multi-attachment, 
+but first delete the replica controller, PVC and storage class. 
+
+    $ kubectl delete rc server
+	$ kubectl delete pvc claim1
+	$ kubectl delete sc csi-sc-cinderplugin
 
 ### 3. Create a Cinder volume type that allows multi-attachment
 
 To attach a Cinder volume to more than one instance, it must have a 
-multi-attach volume type. No such type exists right
+*multi-attach volume type*. No such volume type exists right
 now, so that you have to create one first. See the [Cinder admin guide](https://docs.openstack.org/cinder/latest/admin/blockstorage-volume-multiattach.html) for more information.
 
 **On the Devstack server**:
@@ -182,7 +191,7 @@ The T in True must be upper-case.
 
 ### 4. Add the new volume type to the Kubernetes storage class
 
-**On the master1 server**, modify the **storage class** manifest by adding 
+**On the master1 node**, modify the **storage class** manifest by adding 
 the new volume type as a parameter:
 
 	apiVersion: storage.k8s.io/v1
@@ -225,7 +234,7 @@ and that it has the multiattach flag.
 	server-9djx2   0/1     ContainerCreating   0          13s   <none>   master1   <none>           <none>
 	...
 
-When you repeat the command after a while, all pods should be in status 
+When you repeat the *get* command after a while, all pods should be in status 
 *Running*.
 
 **On the Devstack server**, list the volumes.
@@ -240,18 +249,18 @@ When you repeat the command after a while, all pods should be in status
 	|                      |                      |        |      | /dev/vdb              |
 	+----------------------+----------------------+--------+------+-----------------------+
 
-The *Attached to* column shows that the Cinder volume is attached to the two nodes.
+The *Attached to* column shows that the Cinder volume is attached to both nodes.
 
 <a name="lb" />
 
-Creating a simple app that uses load balancing
-----------------------------------------------
+A simple app that uses load balancing
+-------------------------------------
 
-To demonstrate load balancing, pods need to run at two or more nodes. 
+To demonstrate load balancing, pods need to run on two or more nodes. 
 See the [instructions](#multi-attach-volumes) in the
 previous section for enabling pod scheduling on the controller.
 
-### Create new manifests
+### New manifests
 
 Create a **new replication controller manifest** that uses container-local
 storage instead of a volume:
@@ -296,7 +305,7 @@ Ensure that its selector refers to the replication controller via the above labe
 
 Apply the two manifests. 
 
-### Explore OpenStack resources
+### OpenStack resources
 
 The OpenStack cloud provider will create a
 load balancer, which may take a few minutes. Most of that time will be spend launching a new
@@ -325,7 +334,7 @@ The cloud provider associates a floating IP with the load balancer's VIP address
 You can view it with
 `openstack floating ip list | grep 172.16.0.134`, where 172.16.0.134 is the VIP address.
 
-### Test the loadbalancer
+### Loadbalancer test
 
 **On master1**, the floating IP is used as the service's external IP:
 
@@ -335,20 +344,23 @@ You can view it with
 	lb-webserver   LoadBalancer   10.97.192.7   192.168.1.225   80:30007/TCP   34m
 
 The pods you just launched contain an NGINX web server with a default index.html page. You can
-access the web server with curl <EXTERNAL-IP>, but this doesn't prove to you that more than one
+access the web server with `curl <EXTERNAL-IP>`, but this doesn't prove to you that more than one
 pod is used. 
 
 Create a different index.html for each pod. For example:
 
+	server=1
 	$ for pod in $LIST_OF_PODS
 	do 
-		kubectl exec $i -- /bin/bash -c "echo Server $server > /usr/share/nginx/html/index.html"; server=$((server+1))
+		kubectl exec $i -- /bin/bash -c "echo Server $server > /usr/share/nginx/html/index.html"
+		((server++))
 	done
 
+LIST_OF_PODS is the list of the lbserver pods that you just launched.
 This script replaces index.html in each pod with a customized string.
 
 Test this by repeatedly running the above curl command. You should see how the different pods
-respond.
+respond, proving that load balancing takes place.
 
     $ curl 192.168.1.225
 	Server 7
@@ -359,7 +371,7 @@ respond.
     $ curl 192.168.1.225
 	Server 4
     $ curl 192.168.1.225
-	Server 5
+	Server 2
 
 <a name="complex" />
 

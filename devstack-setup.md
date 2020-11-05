@@ -187,34 +187,35 @@ To access the cloud's GUI, direct a browser to the Devstack server's
 IP address. For command line access, use a shell on the Devstack server. 
 
 Before installing a Kubernetes cluster, add the following to the cloud: A project and 
-user, a network, a security group, a keypair, and a Centos image. Run the [preparation
-script]((https://github.com/berndbausch/Devstack-Kubernetes/blob/main/preparation.sh) 
+user, a network, a security group, a keypair, a Centos image, and a master and worker 
+instance. You can use the [preparation
+script](https://github.com/berndbausch/Devstack-Kubernetes/blob/main/preparation.sh) 
 to create all these cloud resources.
 
 If you need to reboot the Devstack server<a name="reboot" />
 -----------------------------------------
 
-Devstack is not designed for getting restarted. Some of the configuration created when
-deploying a cloud is non-persistent. If you plan to switch the Devstack server off, you 
+Devstack is not designed for getting restarted, since some of its configuration is non-persistent. 
+If you plan to switch the Devstack server off, you 
 need to make it restart-proof.
 
 The *br-ex* bridge must be configured with the Devstack server's IP address. This can be
 done with a [netplan configuration file](https://github.com/berndbausch/Devstack-Kubernetes/blob/main/00-installer-config.yaml). 
 Copy it to `/etc/netplan`.
 
-Much of the remaining configuration settings could also be made persistent with
-configuration files, but a script does the job as well. Run [restore-devstack.sh](https://github.com/berndbausch/Devstack-Kubernetes/blob/main/restore-devstack.sh) after each
-reboot.
+To re-create the remaining configuration settings, I run the script 
+[restore-devstack.sh](https://github.com/berndbausch/Devstack-Kubernetes/blob/main/restore-devstack.sh) 
+after each reboot.
 
 Optionally: Test if load balancing works<a name="test" />
 ----------------------------------------
 
 Based on the [Devstack loadbalancer guide](https://docs.openstack.org/devstack/latest/guides/devstack-with-lbaas-v2.html).
 
-This is not really required, but if you are interested in the setup of a load
-balancer in an OpenStack cloud, you may benefit from this.
+This is not really required, but it gives you insights if you are interested 
+in the setup of a load balancer in an OpenStack cloud.
 
-Do this after [configuring your cloud](#configure). 
+Perform these steps after [configuring your cloud](#configure). 
 Start with two Cirros instances in the *kube* project.
 
     source ~/devstack/openrc kube kube
@@ -226,13 +227,13 @@ group (this opens their firewall for ICMP and network ports 22 and 80) and
 associate floating IP addresses with them.
 
     openstack floating ip create public
-    openstack floating ip create public   # you need two of them
+    openstack floating ip create public   # you need two floating IPs
     openstack server add security group c-1 kubesg
     openstack server add security group c-2 kubesg
     openstack server add floating IP c-1 FLOATING-IP-1
     openstack server add floating IP c-2 FLOATING-IP-2
 
-Access them and install a rudimentary HTTP server.
+Install a rudimentary HTTP server on both instances.
 
     ssh -i kubekey cirros@FLOATING-IP-1
     $ while true
@@ -270,10 +271,8 @@ with additions from the [Basic Load Balancing Cookbook](https://docs.openstack.o
     openstack loadbalancer show testlb  
     # Repeat the above `show` command until the provisioning status turns ACTIVE.
 
-    openstack loadbalancer listener create --protocol HTTP --protocol-port
-    80 --name testlistener testlb
-    openstack loadbalancer pool create --lb-algorithm ROUND_ROBIN
-    --listener testlistener --protocol HTTP --name testpool
+    openstack loadbalancer listener create --protocol HTTP --protocol-port 80 --name testlistener testlb
+    openstack loadbalancer pool create --lb-algorithm ROUND_ROBIN --listener testlistener --protocol HTTP --name testpool
     openstack loadbalancer member create --subnet-id kubesubnet --address $FIXED-IP-1 --protocol-port 80 testpool
     openstack loadbalancer member create --subnet-id kubesubnet --address $FIXED-IP-2 --protocol-port 80 testpool
 
