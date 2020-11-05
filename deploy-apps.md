@@ -5,15 +5,16 @@ You have set up a Devstack cloud, created two instances (*master* and *worker*)
 and deployed a Kubernetes cluster on them. You then added the OpenStack cloud 
 provider and the Cinder CSI plugin to that cloud.
 
-It's time to use the cluster. You will:
-- [create a simple app that uses Cinder volumes](#volumes)
-- [create a simple app that uses multi-attach Cinder volumes](#multi)
-- [create a simple app that uses the load balancer](#lb)
+It's time to use the cluster. You will create apps that:
+- [use Cinder volumes](#volumes)
+- [use multi-attach Cinder volumes](#multi)
+- [use the load balancer](#lb)
 
 <a name="volumes" />
 
 A simple app that uses Cinder volumes
 -------------------------------------
+
 To use Cinder volumes, you need to define a storage class that maps to Cinder.
 This is done by referencing the Cinder CSI driver as provider in the storage
 class definition.
@@ -122,7 +123,7 @@ Multi-attach volumes
 --------------------
 
 By default, Cinder volumes can only be attached to one OpenStack instance. 
-Right now, the PVC is attached to *worker1*.
+Right now, the volume that implements the PVC is only attached to *worker1*.
 
 This section explores **pods on multiple nodes sharing a volume**, 
 and what changes are necessary for this to work. We will:
@@ -200,7 +201,7 @@ See the [Cinder admin guide](https://docs.openstack.org/cinder/latest/admin/bloc
     $ source ~/devstack/openrc admin admin
     $ openstack volume type create multiattach-type --property multiattach="<is> True"
 
-The T in True must be upper-case. 
+Ensure that the multiattach property has the correct value. The T in *True* must be upper-case. 
 
 ### 4. Add the new volume type to the Kubernetes storage class
 
@@ -385,10 +386,4 @@ respond, proving that load balancing takes place.
 	Server 4
     $ curl 192.168.1.225
 	Server 2
-
-<a name="complex" />
-
-Creating a complex app that uses the OpenStack Load Balancer and Cinder volumes
--------------------------------------------------------------------------------
-
 
